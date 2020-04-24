@@ -27,8 +27,9 @@ import socket
 import ssl
 import sys
 import time
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_v1_5
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 from multiprocessing import Process
 from urllib.parse import urlencode
 
@@ -56,16 +57,14 @@ def get_hash(username, password, public_key_filename):
     # Need local copy of public key for NEXT API in PEM format
 
     try:
-        public_key_file_handler = open(public_key_filename).read()
+        public_key_file_handler = open(public_key_filename, "rb").read()
     except IOError:
         print("Could not find the following file: ",
               "\"", public_key_filename, "\"", sep="")
         sys.exit()
-    rsa_key = RSA.importKey(public_key_file_handler)
-    cipher_rsa = PKCS1_v1_5.new(rsa_key)
-    encrypted_hash = cipher_rsa.encrypt(auth_val)
+    rsa_key = serialization.load_pem_public_key(public_key_file_handler, backend=default_backend())
+    encrypted_hash = rsa_key.encrypt(auth_val, padding.PKCS1v15())
     encoded_hash = base64.b64encode(encrypted_hash)
-
     return encoded_hash
 
 def send_http_request(conn, method, uri, params, headers):
@@ -202,7 +201,6 @@ def main():
             send_cmd_to_socket(feed_socket, cmd)
         except Exception as e:
             print(e)
-
 
     feed_socket.shutdown(socket.SHUT_RDWR)
     feed_socket.close()
